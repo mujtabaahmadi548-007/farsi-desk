@@ -11,6 +11,12 @@ export function downloadBlob(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/** Downloads binary data (e.g. a generated .docx). */
+export function downloadBytes(bytes: Uint8Array, filename: string, mime: string): void {
+  // fflate returns a view over a plain ArrayBuffer; the cast only narrows the buffer type for the DOM typings.
+  downloadBlob(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mime }), filename);
+}
+
 export function downloadText(text: string, filename: string, mime = 'text/plain'): void {
   downloadBlob(new Blob([text], { type: `${mime};charset=utf-8` }), filename);
 }

@@ -4,6 +4,7 @@ import { deadlineInfo, formatDate, formatPersianDate } from '../lib/stats';
 import { navigate } from '../router';
 import { directionLabel, type Project } from '../types';
 import { confirmDialog, errorMessage, toast } from '../ui';
+import { Deliver } from './Deliver';
 import { Editor } from './Editor';
 import { NormalizePanel } from './NormalizePanel';
 import { ProjectForm } from './ProjectForm';
@@ -13,6 +14,7 @@ const TABS: { id: string; label: string }[] = [
   { id: 'editor', label: 'Editor' },
   { id: 'normalize', label: 'Normalize' },
   { id: 'qa', label: 'QA' },
+  { id: 'deliver', label: 'Deliver' },
   { id: 'settings', label: 'Project settings' },
 ];
 
@@ -94,6 +96,7 @@ export function ProjectView({ id, tab, query }: Props) {
       {activeTab === 'editor' && <Editor project={project} focusSegmentId={query.get('seg')} />}
       {activeTab === 'normalize' && <NormalizePanel project={project} />}
       {activeTab === 'qa' && <QAPanel project={project} />}
+      {activeTab === 'deliver' && <Deliver project={project} />}
       {activeTab === 'settings' && <ProjectSettings project={project} />}
     </div>
   );
