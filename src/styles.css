@@ -817,7 +817,9 @@ kbd {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  /* clip (not hidden) keeps the rounded corners without turning the list into a scroll container,
+     so the sticky header keeps working while the page scrolls */
+  overflow: clip;
 }
 
 .seg-head,

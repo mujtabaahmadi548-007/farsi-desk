@@ -4,9 +4,13 @@ import { deadlineInfo, formatDate, formatPersianDate } from '../lib/stats';
 import { navigate } from '../router';
 import { directionLabel, type Project } from '../types';
 import { confirmDialog, errorMessage, toast } from '../ui';
+import { Editor } from './Editor';
 import { ProjectForm } from './ProjectForm';
 
-const TABS: { id: string; label: string }[] = [{ id: 'settings', label: 'Project settings' }];
+const TABS: { id: string; label: string }[] = [
+  { id: 'editor', label: 'Editor' },
+  { id: 'settings', label: 'Project settings' },
+];
 
 interface Props {
   id: string;
@@ -14,7 +18,7 @@ interface Props {
   query: URLSearchParams;
 }
 
-export function ProjectView({ id, tab }: Props) {
+export function ProjectView({ id, tab, query }: Props) {
   const project = useLive(async () => (await getProject(id)) ?? null, ['projects'], [id]);
 
   if (project === undefined) return <div class="card muted">Loading…</div>;
@@ -83,6 +87,7 @@ export function ProjectView({ id, tab }: Props) {
         ))}
       </nav>
 
+      {activeTab === 'editor' && <Editor project={project} focusSegmentId={query.get('seg')} />}
       {activeTab === 'settings' && <ProjectSettings project={project} />}
     </div>
   );

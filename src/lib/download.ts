@@ -38,7 +38,7 @@ export function decodeText(buffer: ArrayBuffer): string {
     return new TextDecoder('utf-16be').decode(bytes.subarray(2));
   }
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^﻿/, '');
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^\u{FEFF}/u, '');
   } catch {
     return new TextDecoder('windows-1256').decode(bytes);
   }
