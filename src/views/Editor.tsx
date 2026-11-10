@@ -1,13 +1,27 @@
 import type { ComponentChildren } from 'preact';
 import { memo } from 'preact/compat';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { deleteSegments, listSegments, putSegments, replaceProjectSegments } from '../db';
+import { deleteSegments, listGlossary, listSegments, listTM, putSegments, replaceProjectSegments } from '../db';
 import { countWords, foldForSearch } from '../lib/chars';
+import { findMatches, normalizeForMatch, prepareCandidates, type FuzzyMatch } from '../lib/fuzzy';
+import { findTerms } from '../lib/glossary';
 import type { ImportedSegment } from '../lib/importers';
 import { createSegment, renumber } from '../lib/segments';
 import { formatClock } from '../lib/srt';
-import { langDir, langName, sourceLang, targetLang, type Lang, type Project, type Segment } from '../types';
+import { saveSegmentToTM } from '../lib/tmStore';
+import {
+  langDir,
+  langName,
+  sourceLang,
+  targetLang,
+  type GlossaryTerm,
+  type Lang,
+  type Project,
+  type Segment,
+  type TMEntry,
+} from '../types';
 import { confirmDialog, errorMessage, ProgressBar, toast } from '../ui';
+import { EditorSidePanel } from './EditorSidePanel';
 import { ImportDialog, type ImportMode } from './ImportDialog';
 
 type Filter = 'all' | 'empty' | 'draft' | 'confirmed';
@@ -227,6 +241,9 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
   const [structure, setStructure] = useState(0);
   const [editSource, setEditSource] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [tm, setTm] = useState<TMEntry[]>([]);
+  const [terms, setTerms] = useState<GlossaryTerm[]>([]);
+  const [matches, setMatches] = useState<FuzzyMatch<TMEntry>[]>([]);
 
   const pending = useRef(new Map<string, Segment>());
   const timer = useRef<number | null>(null);
@@ -290,6 +307,22 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
 
+  // The translation memory and the glossary are shared by all projects; load them once.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([listTM(), listGlossary()]).then(
+      ([entries, glossary]) => {
+        if (cancelled) return;
+        setTm(entries);
+        setTerms(glossary);
+      },
+      (error: unknown) => toast(`Could not load the translation memory: ${errorMessage(error)}`, 'error'),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Jump to a segment requested through the URL (QA issue links).
   useEffect(() => {
     if (!focusSegmentId || !segmentsRef.current.some((s) => s.id === focusSegmentId)) return;
@@ -339,9 +372,86 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
       toast('Type a translation before confirming the segment.');
       return;
     }
-    patch(id, { status: 'confirmed', confirmedAt: Date.now() });
+    const confirmed = patch(id, { status: 'confirmed', confirmedAt: Date.now() });
     void flush();
+    if (confirmed) {
+      saveSegmentToTM(project, confirmed).then(
+        (entry) => {
+          if (entry) setTm((current) => [entry, ...current.filter((e) => e.id !== entry.id)]);
+        },
+        (error: unknown) => toast(`Could not save to the translation memory: ${errorMessage(error)}`, 'error'),
+      );
+    }
     if (advance) moveFrom(id, 1);
+  };
+
+  // ----- translation memory lookup for the active segment -----
+  const prepared = useMemo(
+    () =>
+      prepareCandidates(
+        tm.map((entry) => ({
+          item: entry,
+          source: srcLang === 'fa' ? entry.fa : entry.en,
+          target: tgtLang === 'fa' ? entry.fa : entry.en,
+        })),
+      ),
+    [tm, srcLang, tgtLang],
+  );
+
+  const activeSegment = activeId ? (segments ?? []).find((s) => s.id === activeId) : undefined;
+  const activeSource = activeSegment?.source ?? null;
+
+  useEffect(() => {
+    if (activeSource === null || activeId === null) {
+      setMatches([]);
+      return;
+    }
+    // A short delay keeps typing in "Edit source" mode and fast navigation smooth.
+    const handle = window.setTimeout(() => {
+      const own = prepared.filter((candidate) => candidate.item.segmentId !== activeId);
+      setMatches(findMatches(activeSource, own, { minScore: 50, limit: 5 }));
+    }, 60);
+    return () => window.clearTimeout(handle);
+  }, [activeSource, activeId, prepared]);
+
+  const hits = useMemo(
+    () => (activeSource === null ? [] : findTerms(activeSource, terms, srcLang)),
+    [activeSource, terms, srcLang],
+  );
+
+  const applyMatch = (index: number) => {
+    const match = matches[index];
+    if (!match || !activeId) return;
+    patch(activeId, { target: match.target, status: 'draft', confirmedAt: null });
+    focusActiveTarget(match.target.length);
+  };
+
+  /** Puts the cursor back into the active translation box (after a click in the side panel). */
+  const focusActiveTarget = (caret: number) => {
+    window.requestAnimationFrame(() => {
+      const box = document.querySelector<HTMLTextAreaElement>('.seg-row.active .seg-target-input');
+      if (!box) return;
+      box.focus();
+      box.setSelectionRange(caret, caret);
+    });
+  };
+
+  /** Inserts a glossary translation at the cursor, adding a space where two words would touch. */
+  const insertTerm = (text: string) => {
+    if (!activeId) return;
+    const segment = find(activeId);
+    if (!segment) return;
+    const box = document.querySelector<HTMLTextAreaElement>('.seg-row.active .seg-target-input');
+    const value = segment.target;
+    const from = box ? box.selectionStart : value.length;
+    const to = box ? box.selectionEnd : value.length;
+    const before = value.slice(0, from);
+    const after = value.slice(to);
+    const needsSpaceBefore = before !== '' && !/[\s(\[{«“"'\u{200C}-]$/u.test(before);
+    const needsSpaceAfter = after !== '' && /^[\p{L}\p{N}]/u.test(after);
+    const inserted = `${needsSpaceBefore ? ' ' : ''}${text}${needsSpaceAfter ? ' ' : ''}`;
+    patch(activeId, { target: before + inserted + after, status: 'draft', confirmedAt: null });
+    focusActiveTarget(before.length + inserted.length);
   };
 
   const actions = useStableActions({
@@ -429,22 +539,40 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
         }
       })();
     },
-    shortcut: () => {},
+    shortcut: (_id, event) => {
+      // Alt+1 … Alt+5: use a translation memory match (event.code works on any keyboard layout)
+      const digit = /^Digit([1-5])$/.exec(event.code);
+      if (event.altKey && !event.ctrlKey && !event.metaKey && digit) {
+        event.preventDefault();
+        applyMatch(Number(digit[1]) - 1);
+      }
+    },
   });
 
-  const handleImport = async (items: ImportedSegment[], mode: ImportMode) => {
+  const handleImport = async (items: ImportedSegment[], mode: ImportMode, pretranslate: boolean) => {
     await flush();
     const existing = mode === 'append' ? segmentsRef.current : [];
     const lastParagraph = existing.reduce((max, s) => Math.max(max, s.paragraph), -2);
     const paragraphBase = lastParagraph + 2; // leaves a blank paragraph between the old and the new text
-    const created = items.map((item, index) =>
-      createSegment(project.id, existing.length + index, {
+    // Exact matches (100% / 99%) from the memory can be filled in as drafts straight away.
+    const exact = new Map<string, string>();
+    if (pretranslate) {
+      for (const candidate of prepared) {
+        if (!exact.has(candidate.normalized)) exact.set(candidate.normalized, candidate.target);
+      }
+    }
+    let prefilled = 0;
+    const created = items.map((item, index) => {
+      const fromMemory = exact.get(normalizeForMatch(item.text)) ?? '';
+      if (fromMemory !== '') prefilled++;
+      return createSegment(project.id, existing.length + index, {
         paragraph: paragraphBase + item.paragraph,
         source: item.text,
+        target: fromMemory,
         start: item.start,
         end: item.end,
-      }),
-    );
+      });
+    });
     if (mode === 'replace') await replaceProjectSegments(project.id, created);
     else await putSegments(created);
     commit([...existing, ...created]);
@@ -452,8 +580,41 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
     setFilter('all');
     setSearch('');
     setActiveId(created[0]?.id ?? null);
-    toast(`Imported ${created.length} segment${created.length === 1 ? '' : 's'}.`, 'success');
+    toast(
+      `Imported ${created.length} segment${created.length === 1 ? '' : 's'}` +
+        (prefilled > 0 ? `; ${prefilled} pre-translated from the translation memory (as drafts).` : '.'),
+      'success',
+    );
   };
+
+  /** The active source text with its glossary terms highlighted; clicking a term inserts its translation. */
+  const sourceView = useMemo(() => {
+    if (activeSource === null || hits.length === 0) return undefined;
+    const pieces: ComponentChildren[] = [];
+    let cursor = 0;
+    for (const hit of hits) {
+      if (hit.start > cursor) pieces.push(activeSource.slice(cursor, hit.start));
+      const translations = hit.terms.map((term) => (tgtLang === 'fa' ? term.fa : term.en));
+      pieces.push(
+        <mark
+          key={`${hit.start}-${hit.end}`}
+          class="term-hit"
+          title={`Glossary: ${translations.join(' / ')} — click to insert`}
+          onClick={(event) => {
+            event.stopPropagation();
+            insertTerm(translations[0]);
+          }}
+        >
+          {activeSource.slice(hit.start, hit.end)}
+        </mark>,
+      );
+      cursor = hit.end;
+    }
+    if (cursor < activeSource.length) pieces.push(activeSource.slice(cursor));
+    return pieces;
+    // activeId is a dependency so that the click handler never points at a previously active segment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSource, activeId, hits, tgtLang]);
 
   const counts = useMemo(() => {
     const result = { all: 0, empty: 0, draft: 0, confirmed: 0, words: 0 };
@@ -473,6 +634,7 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
     <ImportDialog
       existingCount={segments.length}
       srcLang={srcLang}
+      tmSize={tm.length}
       onImport={handleImport}
       onClose={() => setImportOpen(false)}
     />
@@ -570,28 +732,23 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
                 tgtLang={tgtLang}
                 editSource={editSource}
                 actions={actions}
+                sourceView={seg.id === activeId ? sourceView : undefined}
               />
             );
           })}
         </div>
 
-        <aside class="side-panel">
-          <div class="side-card">
-            <h3>Keyboard</h3>
-            <div class="small" style={{ display: 'grid', gap: '6px' }}>
-              <div>
-                <kbd>Ctrl</kbd>+<kbd>Enter</kbd> confirm and go to the next segment
-              </div>
-              <div>
-                <kbd>Alt</kbd>+<kbd>↓</kbd> / <kbd>Alt</kbd>+<kbd>↑</kbd> next / previous segment
-              </div>
-              <div>
-                <kbd>Alt</kbd>+<kbd>S</kbd> copy the source into the target
-              </div>
-              <div class="muted">Changes are saved automatically.</div>
-            </div>
-          </div>
-        </aside>
+        <EditorSidePanel
+          srcLang={srcLang}
+          tgtLang={tgtLang}
+          activeSource={activeSource}
+          matches={matches}
+          tmSize={tm.length}
+          hits={hits}
+          glossarySize={terms.length}
+          onApplyMatch={applyMatch}
+          onInsertTerm={insertTerm}
+        />
       </div>
       {importDialog}
     </div>

@@ -8,6 +8,7 @@ import { Dashboard } from './views/Dashboard';
 import { blankProject, ProjectForm } from './views/ProjectForm';
 import { ProjectView } from './views/ProjectView';
 import { Settings } from './views/Settings';
+import { TMView } from './views/TMView';
 
 function NewProject() {
   const [initial] = useState(blankProject);
@@ -69,6 +70,7 @@ export function App() {
   else if (current === '') page = <Dashboard />;
   else if (current === 'projects' && a === 'new') page = <NewProject />;
   else if (current === 'project' && a) page = <ProjectView key={a} id={a} tab={b ?? ''} query={route.query} />;
+  else if (current === 'tm') page = <TMView />;
   else if (current === 'settings') page = <Settings />;
   else page = <NotFound />;
 
@@ -90,6 +92,9 @@ export function App() {
         <nav class="nav" aria-label="Main">
           <a href="#/" class={current === '' ? 'active' : ''}>
             Dashboard
+          </a>
+          <a href="#/tm" class={current === 'tm' ? 'active' : ''}>
+            Translation memory
           </a>
           <a href="#/settings" class={current === 'settings' ? 'active' : ''}>
             Settings &amp; backup

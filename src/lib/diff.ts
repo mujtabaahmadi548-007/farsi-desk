@@ -13,8 +13,14 @@ export function tokenize(text: string): string[] {
 
 const MAX_CELLS = 4_000_000;
 
-/** Longest-common-subsequence diff of two token lists. */
-export function diffTokens(a: string[], b: string[]): DiffPart[] {
+/**
+ * Longest-common-subsequence diff of two token lists.
+ * `key` decides when two tokens count as equal (e.g. a fold that ignores ي/ی); unchanged parts
+ * are reported with the text of `a`.
+ */
+export function diffTokens(rawA: string[], rawB: string[], key?: (token: string) => string): DiffPart[] {
+  const a = key ? rawA.map(key) : rawA;
+  const b = key ? rawB.map(key) : rawB;
   const n = a.length;
   const m = b.length;
   const parts: DiffPart[] = [];
@@ -27,8 +33,8 @@ export function diffTokens(a: string[], b: string[]): DiffPart[] {
 
   if (n * m > MAX_CELLS) {
     // Far too long for a quadratic table (never the case for sentences): show a plain replacement.
-    push('del', a.join(''));
-    push('ins', b.join(''));
+    push('del', rawA.join(''));
+    push('ins', rawB.join(''));
     return parts;
   }
 
@@ -46,23 +52,23 @@ export function diffTokens(a: string[], b: string[]): DiffPart[] {
   let j = 0;
   while (i < n && j < m) {
     if (a[i] === b[j]) {
-      push('same', a[i]);
+      push('same', rawA[i]);
       i++;
       j++;
     } else if (lcs[(i + 1) * width + j] >= lcs[i * width + j + 1]) {
-      push('del', a[i]);
+      push('del', rawA[i]);
       i++;
     } else {
-      push('ins', b[j]);
+      push('ins', rawB[j]);
       j++;
     }
   }
-  while (i < n) push('del', a[i++]);
-  while (j < m) push('ins', b[j++]);
+  while (i < n) push('del', rawA[i++]);
+  while (j < m) push('ins', rawB[j++]);
   return parts;
 }
 
-/** Word-level diff of two strings. */
-export function diffWords(before: string, after: string): DiffPart[] {
-  return diffTokens(tokenize(before), tokenize(after));
+/** Word-level diff of two strings. With `key`, words that fold to the same form count as unchanged. */
+export function diffWords(before: string, after: string, key?: (token: string) => string): DiffPart[] {
+  return diffTokens(tokenize(before), tokenize(after), key);
 }

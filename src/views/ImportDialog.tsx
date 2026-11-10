@@ -10,11 +10,14 @@ export type ImportMode = 'append' | 'replace';
 interface Props {
   existingCount: number;
   srcLang: Lang;
-  onImport: (items: ImportedSegment[], mode: ImportMode) => Promise<void>;
+  /** Number of entries in the translation memory (the pre-translate option is hidden when it is empty). */
+  tmSize: number;
+  onImport: (items: ImportedSegment[], mode: ImportMode, pretranslate: boolean) => Promise<void>;
   onClose: () => void;
 }
 
-export function ImportDialog({ existingCount, srcLang, onImport, onClose }: Props) {
+export function ImportDialog({ existingCount, srcLang, tmSize, onImport, onClose }: Props) {
+  const [pretranslate, setPretranslate] = useState(true);
   const [tab, setTab] = useState<'file' | 'paste'>('file');
   const [fileSource, setFileSource] = useState<ImportSource | null>(null);
   const [pasted, setPasted] = useState('');
@@ -47,7 +50,7 @@ export function ImportDialog({ existingCount, srcLang, onImport, onClose }: Prop
     setBusy(true);
     setError('');
     try {
-      await onImport(items, existingCount === 0 ? 'replace' : mode);
+      await onImport(items, existingCount === 0 ? 'replace' : mode, pretranslate && tmSize > 0);
       onClose();
     } catch (e) {
       setError(errorMessage(e));
@@ -132,6 +135,16 @@ export function ImportDialog({ existingCount, srcLang, onImport, onClose }: Prop
             </div>
           )}
         </div>
+
+        {tmSize > 0 && (
+          <label class="check" style={{ marginTop: '12px' }}>
+            <input type="checkbox" checked={pretranslate} onChange={(e) => setPretranslate(e.currentTarget.checked)} />
+            <span>
+              Pre-translate from the translation memory
+              <span class="muted small"> — exact matches are filled in as drafts for you to confirm</span>
+            </span>
+          </label>
+        )}
 
         {error && (
           <div class="notice err" style={{ marginTop: '14px' }}>

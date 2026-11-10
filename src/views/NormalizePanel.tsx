@@ -9,6 +9,7 @@ import {
   type ChangeKind,
   type NormalizeOptions,
 } from '../lib/persian';
+import { refreshTMForSegments } from '../lib/tmStore';
 import type { DigitMode, Project, Segment } from '../types';
 import { errorMessage, toast } from '../ui';
 
@@ -124,6 +125,8 @@ export function NormalizePanel({ project }: { project: Project }) {
         return next;
       });
       await putSegments(updated);
+      // Confirmed segments live in the translation memory too: keep those entries in step.
+      await refreshTMForSegments(project, updated);
       setSegments(await listSegments(project.id));
       setExcluded(new Set());
       toast(`Normalized ${updated.length} segment${updated.length === 1 ? '' : 's'}.`, 'success');
