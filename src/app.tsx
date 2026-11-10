@@ -5,6 +5,7 @@ import { navigate, useRoute } from './router';
 import { ensureSampleOnFirstRun } from './sample';
 import { ConfirmHost, errorMessage, ToastHost } from './ui';
 import { Dashboard } from './views/Dashboard';
+import { GlossaryView } from './views/GlossaryView';
 import { blankProject, ProjectForm } from './views/ProjectForm';
 import { ProjectView } from './views/ProjectView';
 import { Settings } from './views/Settings';
@@ -71,6 +72,7 @@ export function App() {
   else if (current === 'projects' && a === 'new') page = <NewProject />;
   else if (current === 'project' && a) page = <ProjectView key={a} id={a} tab={b ?? ''} query={route.query} />;
   else if (current === 'tm') page = <TMView />;
+  else if (current === 'glossary') page = <GlossaryView />;
   else if (current === 'settings') page = <Settings />;
   else page = <NotFound />;
 
@@ -95,6 +97,9 @@ export function App() {
           </a>
           <a href="#/tm" class={current === 'tm' ? 'active' : ''}>
             Translation memory
+          </a>
+          <a href="#/glossary" class={current === 'glossary' ? 'active' : ''}>
+            Glossary
           </a>
           <a href="#/settings" class={current === 'settings' ? 'active' : ''}>
             Settings &amp; backup
