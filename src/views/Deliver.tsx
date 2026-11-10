@@ -142,7 +142,7 @@ export function Deliver({ project }: { project: Project }) {
 
   const exportSubtitles = (format: 'srt' | 'vtt') =>
     guard(() => {
-      const cues = segmentsToCues(segments, pick);
+      const cues = segmentsToCues(segments, pick, project.mediaDuration);
       const options = { rtlMarks: rtlMarks && outLang === 'fa' };
       const text = format === 'srt' ? formatSrt(cues, options) : formatVtt(cues, options);
       if (text.trim() === '' || text.trim() === 'WEBVTT') {

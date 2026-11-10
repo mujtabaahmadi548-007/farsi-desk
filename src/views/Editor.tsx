@@ -428,12 +428,13 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
 
   /** Puts the cursor back into the active translation box (after a click in the side panel). */
   const focusActiveTarget = (caret: number) => {
-    window.requestAnimationFrame(() => {
+    // A timer rather than an animation frame: it also runs when the window is not in front.
+    window.setTimeout(() => {
       const box = document.querySelector<HTMLTextAreaElement>('.seg-row.active .seg-target-input');
       if (!box) return;
       box.focus();
       box.setSelectionRange(caret, caret);
-    });
+    }, 0);
   };
 
   /** Inserts a glossary translation at the cursor, adding a space where two words would touch. */

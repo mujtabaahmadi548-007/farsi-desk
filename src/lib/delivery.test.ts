@@ -142,9 +142,15 @@ describe('subtitle cues from segments', () => {
     expect(cues).toEqual([
       { start: 1, end: 3, text: 'one' },
       { start: 5, end: 9, text: 'two' },
-      { start: 9, end: 11, text: 'three' },
+      { start: 9, end: 14, text: 'three' },
     ]);
     expect(formatSrt(cues).split('\n')[1]).toBe('00:00:01,000 --> 00:00:03,000');
+  });
+
+  it('does not let the last open cue run past the end of the media', () => {
+    const timed = [seg(0, 0, 'یک', '', { start: 1, end: null }), seg(1, 1, 'دو', '', { start: 9, end: null })];
+    expect(segmentsToCues(timed, (s) => s.source, 11.5).map((c) => c.end)).toEqual([9, 11.5]);
+    expect(segmentsToCues(timed, (s) => s.source, 60).map((c) => c.end)).toEqual([9, 14]);
   });
 });
 

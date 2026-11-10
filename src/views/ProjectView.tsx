@@ -9,11 +9,13 @@ import { Editor } from './Editor';
 import { NormalizePanel } from './NormalizePanel';
 import { ProjectForm } from './ProjectForm';
 import { QAPanel } from './QAPanel';
+import { Transcribe } from './Transcribe';
 
 const TABS: { id: string; label: string }[] = [
   { id: 'editor', label: 'Editor' },
   { id: 'normalize', label: 'Normalize' },
   { id: 'qa', label: 'QA' },
+  { id: 'transcribe', label: 'Transcribe' },
   { id: 'deliver', label: 'Deliver' },
   { id: 'settings', label: 'Project settings' },
 ];
@@ -96,6 +98,7 @@ export function ProjectView({ id, tab, query }: Props) {
       {activeTab === 'editor' && <Editor project={project} focusSegmentId={query.get('seg')} />}
       {activeTab === 'normalize' && <NormalizePanel project={project} />}
       {activeTab === 'qa' && <QAPanel project={project} />}
+      {activeTab === 'transcribe' && <Transcribe project={project} />}
       {activeTab === 'deliver' && <Deliver project={project} />}
       {activeTab === 'settings' && <ProjectSettings project={project} />}
     </div>

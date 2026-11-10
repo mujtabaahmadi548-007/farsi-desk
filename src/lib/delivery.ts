@@ -63,17 +63,28 @@ export function buildPlainText(segments: Segment[], pick: (segment: Segment) => 
   return paragraphs.length === 0 ? '' : paragraphs.join('\n') + '\n';
 }
 
+/** How long an open-ended last cue stays on screen when nothing better is known. */
+const OPEN_CUE_SECONDS = 5;
+
 /**
  * Timed segments → subtitle cues, in time order. A missing end time is taken from the start of the
- * next cue (or start + 2 s for the last one), and every cue is at least 0.2 s long.
+ * next cue; the last cue runs for 5 s, but never past the end of the media when its length is known.
+ * Every cue is at least 0.2 s long.
  */
-export function segmentsToCues(segments: Segment[], pick: (segment: Segment) => string): Cue[] {
+export function segmentsToCues(
+  segments: Segment[],
+  pick: (segment: Segment) => string,
+  mediaDuration: number | null = null,
+): Cue[] {
   const timed = segments
     .filter((segment): segment is Segment & { start: number } => segment.start !== null)
     .sort((a, b) => a.start - b.start);
   return timed.map((segment, index) => {
     const next = timed[index + 1];
-    const fallbackEnd = next ? next.start : segment.start + 2;
+    let fallbackEnd = next ? next.start : segment.start + OPEN_CUE_SECONDS;
+    if (!next && mediaDuration !== null && mediaDuration > segment.start) {
+      fallbackEnd = Math.min(fallbackEnd, mediaDuration);
+    }
     const end = segment.end !== null && segment.end > segment.start ? segment.end : fallbackEnd;
     return { start: segment.start, end: Math.max(end, segment.start + 0.2), text: pick(segment) };
   });
