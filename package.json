@@ -1,0 +1,28 @@
+{
+  "name": "farsi-desk",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Farsi Desk — a client-side Persian↔English translation and transcription workstation",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource-variable/vazirmatn": "^5.3.0",
+    "@huggingface/transformers": "^4.3.2",
+    "fflate": "^0.8.3",
+    "idb": "^8.0.4",
+    "preact": "^11.2.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "jsdom": "^31.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0"
+  }
+}
