@@ -449,7 +449,8 @@ export function Editor({ project, focusSegmentId }: EditorProps) {
     const before = value.slice(0, from);
     const after = value.slice(to);
     const needsSpaceBefore = before !== '' && !/[\s(\[{«“"'\u{200C}-]$/u.test(before);
-    const needsSpaceAfter = after !== '' && /^[\p{L}\p{N}]/u.test(after);
+    // A word, a number or an opening bracket/quote right after the cursor needs a space before it.
+    const needsSpaceAfter = after !== '' && /^[\p{L}\p{N}(\[{«“]/u.test(after);
     const inserted = `${needsSpaceBefore ? ' ' : ''}${text}${needsSpaceAfter ? ' ' : ''}`;
     patch(activeId, { target: before + inserted + after, status: 'draft', confirmedAt: null });
     focusActiveTarget(before.length + inserted.length);

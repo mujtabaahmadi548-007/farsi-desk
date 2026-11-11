@@ -227,6 +227,13 @@ describe('checkSegment — translation', () => {
     expect(checksOf(seg('Hello world', 'Hello world'), EN_FA)).toEqual(['copied']);
   });
 
+  it('still recognises a copied source after the source was normalized', () => {
+    // target = the original text with Arabic yeh/kaf and a Latin digit; source = its normalized form
+    const original = 'براي اطلاعات بيشتر به بخش 3 مراجعه كنيد.';
+    const normalized = 'برای اطلاعات بیشتر به بخش ۳ مراجعه کنید.';
+    expect(checksOf(seg(normalized, original))).toEqual(['copied']);
+  });
+
   it('lists unconfirmed translations as information', () => {
     const issues = checkSegment(seg('سلام', 'Hello', { status: 'draft' }), FA_EN);
     expect(issues.map((i) => [i.check, i.severity])).toEqual([['unconfirmed', 'info']]);

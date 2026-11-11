@@ -1,5 +1,6 @@
 import { sourceLang, targetLang, type Direction, type GlossaryTerm, type Segment } from '../types';
 import { hasLatin, hasPersian, toLatinDigits } from './chars';
+import { normalizeForMatch } from './fuzzy';
 import { containsTerm, findTerms } from './glossary';
 
 export type QACheck = 'empty' | 'numbers' | 'glossary' | 'spaces' | 'brackets' | 'copied' | 'timing' | 'unconfirmed';
@@ -170,8 +171,9 @@ export function checkSegment(segment: Segment, context: QAContext, previousTimed
   const tgtLang = targetLang(context.direction);
 
   // Source copied unchanged — only meaningful when the source contains text in the source language.
+  // Compared in folded form, so a copy is still recognised after one side was normalized (ي→ی, ۱→1 …).
   const sourceHasWords = srcLang === 'fa' ? hasPersian(source) : hasLatin(source);
-  if (sourceHasWords && target.trim() === source.trim()) {
+  if (sourceHasWords && normalizeForMatch(target) === normalizeForMatch(source)) {
     add('copied', 'warning', 'The target is identical to the source (copied, not translated).');
   }
 
