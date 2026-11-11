@@ -8,8 +8,10 @@ import { segmentsToCues } from '../lib/delivery';
 import { downloadText, safeFileName } from '../lib/download';
 import { createSegment } from '../lib/segments';
 import { formatClock, formatSrt, formatTranscript, formatVtt, parseTimestamp } from '../lib/srt';
+import type { TimedText } from '../lib/whisper';
 import { langDir, langName, sourceLang, type Lang, type Project, type Segment } from '../types';
 import { confirmDialog, errorMessage, FileButton, toast } from '../ui';
+import { AutoTranscribe } from './AutoTranscribe';
 
 /** Files above this size are not decoded automatically: decoding needs several times the file size in memory. */
 const AUTO_DECODE_LIMIT = 300 * 1024 * 1024;
@@ -537,6 +539,29 @@ export function Transcribe({ project }: { project: Project }) {
     [],
   );
 
+  // ----- automatic transcription -------------------------------------------
+
+  /** Adds the segments recognised by Whisper to the transcript. */
+  const addTranscribed = async (items: TimedText[]) => {
+    await saver.flush();
+    const list = segmentsRef.current;
+    const created = items.map((item, index) =>
+      createSegment(project.id, list.length + index, { source: item.text, start: item.start, end: item.end }),
+    );
+    await restructure(
+      [...list, ...created],
+      created.map((segment) => segment.id),
+    );
+  };
+
+  /** Deletes every timestamped segment (used when the automatic transcript replaces the current one). */
+  const clearTimed = async () => {
+    await saver.flush();
+    const list = segmentsRef.current;
+    await deleteSegments(list.filter((segment) => segment.start !== null).map((segment) => segment.id));
+    await restructure(list.filter((segment) => segment.start === null));
+  };
+
   // ----- keyboard shortcuts ------------------------------------------------
 
   const shortcuts = useRef({ togglePlay, seekBy, toggleSlow, stamp });
@@ -775,7 +800,8 @@ export function Transcribe({ project }: { project: Project }) {
             <h3>No timestamped segments yet</h3>
             <div>
               Press Play, then press <kbd>Ctrl</kbd>+<kbd>J</kbd> at the start of each sentence and type what you
-              hear. Each press closes the previous segment and starts a new one at the playhead.
+              hear. Each press closes the previous segment and starts a new one at the playhead. Or let the
+              computer write a first draft with “Automatic transcription” further down this page.
             </div>
           </div>
         ) : (
@@ -798,6 +824,15 @@ export function Transcribe({ project }: { project: Project }) {
           export translated subtitles from the Deliver tab.
         </p>
       </div>
+
+      <AutoTranscribe
+        audio={decoded}
+        audioState={!media ? 'none' : decodeState === 'idle' ? 'decoding' : decodeState}
+        defaultLanguage={lang}
+        existingCount={timed.length}
+        onClear={clearTimed}
+        onSegments={addTranscribed}
+      />
 
       <div class="card">
         <div class="card-title">
